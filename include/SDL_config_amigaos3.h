@@ -148,8 +148,7 @@
 #define HAVE_GCC_ATOMICS 0
 #define HAVE_GCC_SYNC_LOCK_TEST_AND_SET 0
 
-/* Dynamic API -- disabled, no dlopen on AmigaOS 3.x */
-#define SDL_DYNAMIC_API 0
+/* Dynamic API -- disabled in src/dynapi/SDL_dynapi.h via __AMIGAOS3__ check */
 
 /* --- VIDEO DRIVERS --- */
 #define SDL_VIDEO_DRIVER_AMIGAOS3   1
