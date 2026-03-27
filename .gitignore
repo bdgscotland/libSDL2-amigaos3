@@ -16,6 +16,16 @@
 # Docker
 .docker-env
 
+# Build output directories (bootable system, compiled binaries)
+build/system/
+build/amiga/
+build/system.hdf
+build/fs-uae-state/
+
+# Compiled example binaries
+examples/test_init
+examples/test_video
+
 # Test artifacts
 *.log
 gmon.out
