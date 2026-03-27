@@ -36,7 +36,10 @@
 #endif
 
 /* The __atomic_load_n() intrinsic showed up in different times for different compilers. */
-#if defined(__clang__)
+#if defined(__AMIGAOS3__)
+/* 68k: GCC builtins generate external __sync_* calls that don't exist.
+   Use EMULATE_CAS path with our CAS-based spinlocks instead. */
+#elif defined(__clang__)
 #if __has_builtin(__atomic_load_n) || defined(HAVE_GCC_ATOMICS)
 /* !!! FIXME: this advertises as available in the NDK but uses an external symbol we don't have.
    It might be in a later NDK or we might need an extra library? --ryan. */
