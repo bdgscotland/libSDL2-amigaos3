@@ -1,0 +1,21 @@
+# Build artifacts
+*.o
+*.a
+*.lha
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Docker
+.docker-env
+
+# Test artifacts
+*.log
+gmon.out
