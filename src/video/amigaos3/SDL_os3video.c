@@ -20,6 +20,7 @@
 #include "SDL_os3events.h"
 #include "../SDL_sysvideo.h"
 #include "../../events/SDL_events_c.h"
+#include "../../core/amigaos3/SDL_os3subsystem.h"
 
 /*
  * AmigaOS library bases.
@@ -98,6 +99,31 @@ VideoBootStrap OS3_bootstrap = {
     OS3_CreateDevice, NULL /* ShowMessageBox */
 };
 
+/* Shutdown callbacks for the state machine */
+static void OS3_ShutdownGraphics(void)
+{
+    if (GfxBase) {
+        CloseLibrary((struct Library *)GfxBase);
+        GfxBase = NULL;
+    }
+}
+
+static void OS3_ShutdownIntuition(void)
+{
+    if (IntuitionBase) {
+        CloseLibrary((struct Library *)IntuitionBase);
+        IntuitionBase = NULL;
+    }
+}
+
+static void OS3_ShutdownCyberGfx(void)
+{
+    if (CyberGfxBase) {
+        CloseLibrary(CyberGfxBase);
+        CyberGfxBase = NULL;
+    }
+}
+
 static int OS3_VideoInit(_THIS)
 {
     ULONG nextid;
@@ -105,6 +131,8 @@ static int OS3_VideoInit(_THIS)
     int found_any;
     struct Process *me;
     APTR oldwin;
+
+    OS3_SubsystemInit();
 
     /* Suppress AmigaDOS system requesters ("Please insert volume...")
        during library opens. Without this, a missing cybergraphics.library
@@ -114,28 +142,39 @@ static int OS3_VideoInit(_THIS)
     oldwin = me->pr_WindowPtr;
     me->pr_WindowPtr = (APTR)-1L;
 
+    /* --- graphics.library --- */
+    OS3_SetState(OS3_SUBSYS_GRAPHICS, OS3_STATE_INITIALIZING);
     printf("[OS3_VideoInit] opening graphics.library...\n");
     fflush(stdout);
 
     GfxBase = (struct GfxBase *)
               OpenLibrary((CONST_STRPTR)"graphics.library", 39UL);
     if (!GfxBase) {
+        OS3_SetState(OS3_SUBSYS_GRAPHICS, OS3_STATE_ERROR);
         me->pr_WindowPtr = oldwin;
         return SDL_SetError("Cannot open graphics.library V39+");
     }
+    OS3_SetState(OS3_SUBSYS_GRAPHICS, OS3_STATE_READY);
+    OS3_SetShutdownFunc(OS3_SUBSYS_GRAPHICS, OS3_ShutdownGraphics);
 
+    /* --- intuition.library --- */
+    OS3_SetState(OS3_SUBSYS_INTUITION, OS3_STATE_INITIALIZING);
     printf("[OS3_VideoInit] opening intuition.library...\n");
     fflush(stdout);
 
     IntuitionBase = (struct IntuitionBase *)
                     OpenLibrary((CONST_STRPTR)"intuition.library", 39UL);
     if (!IntuitionBase) {
-        CloseLibrary((struct Library *)GfxBase);
-        GfxBase = NULL;
+        OS3_SetState(OS3_SUBSYS_INTUITION, OS3_STATE_ERROR);
         me->pr_WindowPtr = oldwin;
+        OS3_ShutdownAll();
         return SDL_SetError("Cannot open intuition.library V39+");
     }
+    OS3_SetState(OS3_SUBSYS_INTUITION, OS3_STATE_READY);
+    OS3_SetShutdownFunc(OS3_SUBSYS_INTUITION, OS3_ShutdownIntuition);
 
+    /* --- cybergraphics.library --- */
+    OS3_SetState(OS3_SUBSYS_CYBERGFX, OS3_STATE_INITIALIZING);
     printf("[OS3_VideoInit] opening cybergraphics.library...\n");
     fflush(stdout);
 
@@ -157,13 +196,13 @@ static int OS3_VideoInit(_THIS)
     fflush(stdout);
 
     if (!CyberGfxBase) {
-        CloseLibrary((struct Library *)IntuitionBase);
-        IntuitionBase = NULL;
-        CloseLibrary((struct Library *)GfxBase);
-        GfxBase = NULL;
+        OS3_SetState(OS3_SUBSYS_CYBERGFX, OS3_STATE_ERROR);
+        OS3_ShutdownAll();
         return SDL_SetError("Cannot open cybergraphics.library V40+"
                             " -- no RTG board or driver not installed");
     }
+    OS3_SetState(OS3_SUBSYS_CYBERGFX, OS3_STATE_READY);
+    OS3_SetShutdownFunc(OS3_SUBSYS_CYBERGFX, OS3_ShutdownCyberGfx);
 
     /*
      * Enumerate RTG display modes to build the SDL display list.
@@ -176,6 +215,8 @@ static int OS3_VideoInit(_THIS)
      * We only look for the best mode here. GetDisplayModes fills in
      * the full list.
      */
+    OS3_SetState(OS3_SUBSYS_VIDEO, OS3_STATE_INITIALIZING);
+
     SDL_zero(best_mode);
     best_mode.format = SDL_PIXELFORMAT_ARGB8888;
     best_mode.w = 640;
@@ -206,34 +247,31 @@ static int OS3_VideoInit(_THIS)
     }
 
     if (SDL_AddBasicVideoDisplay(&best_mode) < 0) {
-        CloseLibrary(CyberGfxBase);
-        CyberGfxBase = NULL;
-        CloseLibrary((struct Library *)IntuitionBase);
-        IntuitionBase = NULL;
-        CloseLibrary((struct Library *)GfxBase);
-        GfxBase = NULL;
+        OS3_SetState(OS3_SUBSYS_VIDEO, OS3_STATE_ERROR);
+        OS3_ShutdownAll();
         return -1;
     }
+
+    OS3_SetState(OS3_SUBSYS_VIDEO, OS3_STATE_READY);
+    /* VIDEO shutdown is handled by OS3_VideoQuit, registered below */
+
+    printf("[OS3_VideoInit] subsystem state:\n");
+    OS3_DumpSubsystems();
 
     return 0;
 }
 
 static void OS3_VideoQuit(_THIS)
 {
-    /* Libraries -- close in reverse order. Windows and screens must be
-       closed already (DestroyWindow is called before VideoQuit). */
-    if (CyberGfxBase) {
-        CloseLibrary(CyberGfxBase);
-        CyberGfxBase = NULL;
+    /* Mark VIDEO composite as shutting down, then let the state machine
+       tear down libraries in reverse init order (cgx -> intuition -> gfx).
+       Windows and screens must be closed already (DestroyWindow is called
+       before VideoQuit). */
+    if (OS3_GetState(OS3_SUBSYS_VIDEO) == OS3_STATE_READY) {
+        OS3_SetState(OS3_SUBSYS_VIDEO, OS3_STATE_SHUTTING_DOWN);
+        OS3_SetState(OS3_SUBSYS_VIDEO, OS3_STATE_NONE);
     }
-    if (IntuitionBase) {
-        CloseLibrary((struct Library *)IntuitionBase);
-        IntuitionBase = NULL;
-    }
-    if (GfxBase) {
-        CloseLibrary((struct Library *)GfxBase);
-        GfxBase = NULL;
-    }
+    OS3_ShutdownAll();
 }
 
 static void OS3_GetDisplayModes(_THIS, SDL_VideoDisplay *display)

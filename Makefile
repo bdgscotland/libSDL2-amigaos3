@@ -213,6 +213,10 @@ SRCS_SENSOR = \
 	src/sensor/SDL_sensor.c \
 	src/sensor/dummy/SDL_dummysensor.c
 
+# --- Core: AmigaOS3 subsystem state machine ---
+SRCS_CORE_OS3 = \
+	src/core/amigaos3/SDL_os3subsystem.c
+
 # --- Main entry point ---
 SRCS_MAIN = \
 	src/main/amigaos3/SDL_os3_main.c
@@ -222,7 +226,8 @@ SRCS = $(SRCS_CORE) $(SRCS_ATOMIC) $(SRCS_CPUINFO) $(SRCS_DYNAPI) \
        $(SRCS_STDLIB) $(SRCS_LIBM) $(SRCS_FILE) $(SRCS_EVENTS) \
        $(SRCS_VIDEO) $(SRCS_AUDIO) $(SRCS_THREAD) $(SRCS_TIMER) \
        $(SRCS_JOYSTICK) $(SRCS_HAPTIC) $(SRCS_RENDER) \
-       $(SRCS_FILESYS) $(SRCS_LOADSO) $(SRCS_SENSOR) $(SRCS_MAIN)
+       $(SRCS_FILESYS) $(SRCS_LOADSO) $(SRCS_SENSOR) \
+       $(SRCS_CORE_OS3) $(SRCS_MAIN)
 
 OBJS = $(SRCS:.c=.o)
 
@@ -265,6 +270,8 @@ native-examples: $(TARGET)
 	@echo "Built examples/test_init"
 	$(CC) $(CFLAGS) -o examples/test_video examples/test_video.c -L. -lSDL2 -lm
 	@echo "Built examples/test_video"
+	$(CC) $(CFLAGS) -o examples/test_statemachine examples/test_statemachine.c -L. -lSDL2 -lm
+	@echo "Built examples/test_statemachine"
 
 test:
 	@echo "Run: vamos -C 68020 -s 32 -m 8192 examples/test_init"
