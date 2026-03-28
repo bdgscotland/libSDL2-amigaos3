@@ -23,7 +23,10 @@ build/system.hdf
 build/fs-uae-state/
 
 # Compiled example binaries
+examples/test_bare
 examples/test_init
+examples/test_spinlock
+examples/test_statemachine
 examples/test_video
 
 # Test artifacts
